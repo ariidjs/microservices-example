@@ -1,0 +1,82 @@
+version: '3.8'
+services:
+
+  webserver:
+    image: nginx:alpine
+    restart: unless-stopped
+    tty: true
+    depends_on:
+      - gateway
+      - books
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./apps/books/:/var/www/books
+      - ./apps/gateway/:/var/www/gateway
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/sites/:/etc/nginx/conf.d/
+    networks:
+      app-network:
+        aliases:
+            - gateway.test
+            - booksden.test
+
+  books:
+    build:
+      context: apps/books
+      dockerfile: Dockerfile
+    image: php:7.4-fpm
+    restart: unless-stopped
+    tty: true
+    working_dir: /var/www/books
+    ports:
+      - 9001:9000
+    depends_on:
+      - mysql
+    volumes:
+      - ./apps/books/:/var/www/books
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - app-network
+
+  gateway:
+    build:
+      context: apps/gateway
+    image: php:7.4-fpm
+    restart: unless-stopped
+    working_dir: /var/www/gateway
+    links:
+      - books
+    ports:
+    - 9000:8087
+    tty: true
+    volumes:
+        - ./apps/gateway/:/var/www/gateway
+        - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+        - app-network
+  mysql:
+    image: mysql:5.7
+    restart: unless-stopped
+    tty: true
+    environment:
+      MYSQL_DATABASE: books_db
+      MYSQL_ROOT_PASSWORD: root
+      SERVICE_NAME: mysql
+      SERVICE_TAGS: dev
+    ports:
+      - 3306:3306
+    volumes:
+      - dbdata:/var/lib/mydbb
+
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local
